@@ -1,0 +1,20 @@
+[project]
+name = "flint-discord"
+version = "0.1.0"
+description = "Discord interface for Flint server — sessions, artifacts, workspace management"
+requires-python = ">=3.11"
+dependencies = [
+    "discord.py>=2.4.0",
+    "httpx>=0.28.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+flint-discord = "flint_discord.bot:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
