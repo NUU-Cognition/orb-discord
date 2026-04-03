@@ -81,6 +81,11 @@ async def setup_bot(bot: commands.Bot):
         prompt = message.content
         if bot.user:
             prompt = prompt.replace(f"<@{bot.user.id}>", "").strip()
+        if message.attachments:
+            attachment_lines = "\n".join(
+                f"- {a.filename}: {a.url}" for a in message.attachments
+            )
+            prompt = (prompt + "\n\nAttachments:\n" + attachment_lines).strip()
         if not prompt:
             return await message.reply("Send me a message and I'll pass it to Claude!")
 
