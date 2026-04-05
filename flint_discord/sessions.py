@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import TYPE_CHECKING
 
 import discord
+import httpx
 
 from .api import api_get, api_post
-from .config import MAX_TURNS, POLL_INTERVAL
+from .config import FLINT_SERVER_URL, MAX_TURNS, POLL_INTERVAL
 from .formatting import STATUS_COLORS, STATUS_EMOJI, extract_discord_images, send_long
 
 if TYPE_CHECKING:
@@ -37,17 +39,9 @@ def _format_tool(tool: dict) -> str:
     return f"`{name}` {detail}" if detail else f"`{name}`"
 
 
-async def _stream_new_turns(sid: str, target: discord.abc.Messageable, last_turn_count: int) -> int:
-    """Post new transcript turns to the channel. Returns updated turn count."""
-    transcript = await api_get(f"/orbh/sessions/{sid}/transcript")
-    if not transcript:
-        return last_turn_count
-    turns = transcript.get("turns", [])
-    new_count = len(turns)
-    if new_count <= last_turn_count:
-        return last_turn_count
-
-    for turn in turns[last_turn_count:]:
+async def _render_turns(turns: list[dict], target: discord.abc.Messageable):
+    """Render transcript turns into Discord messages. Shared by SSE and polling paths."""
+    for turn in turns:
         if turn.get("role") != "agent":
             continue
 
@@ -80,7 +74,88 @@ async def _stream_new_turns(sid: str, target: discord.abc.Messageable, last_turn
             if image_files:
                 await target.send(files=image_files)
 
+
+async def _poll_transcript_turns(sid: str, target: discord.abc.Messageable, transcript_index: int) -> int:
+    """Polling fallback: fetch full transcript and render new turns. Returns updated index."""
+    transcript = await api_get(f"/orbh/sessions/{sid}/transcript")
+    if not transcript:
+        return transcript_index
+    turns = transcript.get("turns", [])
+    new_count = len(turns)
+    if new_count <= transcript_index:
+        return transcript_index
+    await _render_turns(turns[transcript_index:], target)
     return new_count
+
+
+async def _stream_transcript_sse(
+    sid: str,
+    target: discord.abc.Messageable,
+    sse_active: asyncio.Event,
+    transcript_index: list[int],
+    stop: asyncio.Event,
+):
+    """Consume transcript turns via SSE. Sets sse_active while connected."""
+    try:
+        async with httpx.AsyncClient(timeout=None) as http:
+            url = f"{FLINT_SERVER_URL}/events/stream?channels=transcripts&sessionIds={sid}"
+            async with http.stream("GET", url) as resp:
+                sse_active.set()
+                buffer = ""
+                async for chunk in resp.aiter_text():
+                    if stop.is_set():
+                        return
+                    buffer += chunk
+                    while "\n\n" in buffer:
+                        raw_block, buffer = buffer.split("\n\n", 1)
+                        event_type = None
+                        data_str = None
+                        for line in raw_block.split("\n"):
+                            if line.startswith("event: "):
+                                event_type = line[7:]
+                            elif line.startswith("data: "):
+                                data_str = line[6:]
+                            elif line.startswith(":"):
+                                continue
+                        if not data_str:
+                            continue
+                        try:
+                            data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+
+                        evt = event_type or data.get("event")
+
+                        if evt == "snapshot":
+                            for payload in data.get("transcripts", []):
+                                if payload.get("sessionId") != sid:
+                                    continue
+                                turns = payload.get("turns", [])
+                                to_idx = payload.get("toIndex", len(turns))
+                                from_idx = payload.get("fromIndex", 0)
+                                current_idx = transcript_index[0]
+                                if to_idx > current_idx:
+                                    offset = max(0, current_idx - from_idx)
+                                    await _render_turns(turns[offset:], target)
+                                    transcript_index[0] = to_idx
+
+                        elif evt == "transcript.turns":
+                            if data.get("sessionId") != sid:
+                                continue
+                            turns = data.get("turns", [])
+                            from_idx = data.get("fromIndex", 0)
+                            to_idx = data.get("toIndex", from_idx + len(turns))
+                            current_idx = transcript_index[0]
+                            if to_idx > current_idx:
+                                offset = max(0, current_idx - from_idx)
+                                await _render_turns(turns[offset:], target)
+                                transcript_index[0] = to_idx
+    except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError):
+        pass
+    except Exception:
+        pass
+    finally:
+        sse_active.clear()
 
 
 async def update_status_card(state: BotState, sid: str, session: dict, *, description: str | None = None, color: int | None = None):
@@ -164,46 +239,62 @@ async def poll_session(state: BotState, sid: str):
         return
 
     last_title = None
-    last_turn_count = 0
+    transcript_index = [0]  # mutable container shared with SSE task
+    sse_active = asyncio.Event()
+    stop = asyncio.Event()
 
-    while sid in state.tracked_sessions:
-        await asyncio.sleep(POLL_INTERVAL)
+    # Start SSE transcript consumer as a background task
+    sse_task = asyncio.create_task(
+        _stream_transcript_sse(sid, target, sse_active, transcript_index, stop)
+    )
 
-        # Stream new transcript turns into the channel
-        last_turn_count = await _stream_new_turns(sid, target, last_turn_count)
+    try:
+        while sid in state.tracked_sessions:
+            await asyncio.sleep(POLL_INTERVAL)
 
-        data = await api_get(f"/orbh/sessions/{sid}")
-        if not data or "session" not in data:
-            continue
+            # Fall back to polling transcript if SSE is not active
+            if not sse_active.is_set():
+                transcript_index[0] = await _poll_transcript_turns(sid, target, transcript_index[0])
 
-        session = data["session"]
-        status = session.get("status")
-        title = session.get("title") or None
+            data = await api_get(f"/orbh/sessions/{sid}")
+            if not data or "session" not in data:
+                continue
 
-        if title and title != last_title:
-            last_title = title
-            await update_status_card(state, sid, session, description=f"**{title}**\n\n\u2699\uFE0F Working...")
+            session = data["session"]
+            status = session.get("status")
+            title = session.get("title") or None
 
-        if status in ("blocked", "deferred"):
-            await surface_pending_requests(state, sid, target)
-            continue
+            if title and title != last_title:
+                last_title = title
+                await update_status_card(state, sid, session, description=f"**{title}**\n\n\u2699\uFE0F Working...")
 
-        if status == "finished":
-            await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u2705 Finished", color=0x2ECC71)
-            await post_session_result(state, sid, session, target)
-            break
+            if status in ("blocked", "deferred"):
+                await surface_pending_requests(state, sid, target)
+                continue
 
-        if status == "failed":
-            await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u274C Failed", color=0xFF0000)
-            author = state.get_author(sid)
-            embed = discord.Embed(description="Session failed.", color=0xFF0000)
-            embed.set_footer(text=f"session: {sid}")
-            await target.send(content=author.mention if author else None, embed=embed)
-            break
+            if status == "finished":
+                # Give SSE a moment to deliver final turns before falling back
+                await asyncio.sleep(1)
+                if not sse_active.is_set():
+                    transcript_index[0] = await _poll_transcript_turns(sid, target, transcript_index[0])
+                await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u2705 Finished", color=0x2ECC71)
+                await post_session_result(state, sid, session, target)
+                break
 
-        if status == "cancelled":
-            await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u23F9\uFE0F Cancelled")
-            break
+            if status == "failed":
+                await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u274C Failed", color=0xFF0000)
+                author = state.get_author(sid)
+                embed = discord.Embed(description="Session failed.", color=0xFF0000)
+                embed.set_footer(text=f"session: {sid}")
+                await target.send(content=author.mention if author else None, embed=embed)
+                break
+
+            if status == "cancelled":
+                await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u23F9\uFE0F Cancelled")
+                break
+    finally:
+        stop.set()
+        sse_task.cancel()
 
     state.tracked_sessions.pop(sid, None)
     state.save()
