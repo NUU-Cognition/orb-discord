@@ -17,75 +17,6 @@ if TYPE_CHECKING:
 DISCORD_SHARD_INSTRUCTION = "\n\nAfter initialization, also read Shards/Discord/init-disc.md and follow its conventions."
 
 
-def _format_tool(tool: dict) -> str:
-    """Format a single tool entry from a tool-batch as a concise summary."""
-    name = tool.get("tool", "unknown")
-    inp = tool.get("input") or {}
-    if not isinstance(inp, dict):
-        return f"`{name}`"
-    detail = ""
-    if name in ("Read", "Edit", "Write"):
-        fp = inp.get("file_path", "")
-        detail = fp.rsplit("/", 1)[-1] if fp else ""
-    elif name == "Bash":
-        cmd = inp.get("command", "")
-        detail = (cmd[:80] + "\u2026") if len(cmd) > 80 else cmd
-    elif name in ("Grep", "Glob"):
-        detail = inp.get("pattern", "")
-    elif name == "Agent":
-        detail = inp.get("description", "")
-    return f"`{name}` {detail}" if detail else f"`{name}`"
-
-
-async def _render_turns(turns: list[dict], target: discord.abc.Messageable):
-    """Render transcript turns into Discord messages."""
-    for turn in turns:
-        if turn.get("role") != "agent":
-            continue
-
-        tool_lines: list[str] = []
-        text_parts: list[str] = []
-
-        for block in turn.get("content", []):
-            btype = block.get("type")
-            if btype == "tool-batch":
-                for tool in block.get("tools", []):
-                    tool_lines.append(_format_tool(tool))
-            elif btype == "text":
-                text = block.get("text", "").strip()
-                if text:
-                    text_parts.append(text)
-
-        if tool_lines:
-            msg = "\U0001f527 " + " \u2192 ".join(tool_lines)
-            if len(msg) > 2000:
-                msg = msg[:1997] + "\u2026"
-            await target.send(msg)
-
-        if text_parts:
-            full_text = "\n\n".join(text_parts)
-            cleaned, image_files = extract_discord_images(full_text)
-            if cleaned:
-                if len(cleaned) > 2000:
-                    cleaned = cleaned[:1997] + "\u2026"
-                await target.send(cleaned)
-            if image_files:
-                await target.send(files=image_files)
-
-
-async def _poll_transcript_turns(sid: str, target: discord.abc.Messageable, transcript_index: int) -> int:
-    """Polling fallback: fetch full transcript and render new turns. Returns updated index."""
-    transcript = await api_get(f"/orbh/sessions/{sid}/transcript")
-    if not transcript:
-        return transcript_index
-    turns = transcript.get("turns", [])
-    new_count = len(turns)
-    if new_count <= transcript_index:
-        return transcript_index
-    await _render_turns(turns[transcript_index:], target)
-    return new_count
-
-
 async def update_status_card(state: BotState, sid: str, session: dict, *, description: str | None = None, color: int | None = None):
     info = state.tracked_sessions.get(sid)
     if not info or not info.get("status_msg"):
@@ -102,6 +33,18 @@ async def update_status_card(state: BotState, sid: str, session: dict, *, descri
         await info["status_msg"].edit(embed=embed)
     except discord.NotFound:
         info["status_msg"] = None
+
+
+async def delete_status_card(state: BotState, sid: str):
+    """Delete the status card message for a session."""
+    info = state.tracked_sessions.get(sid)
+    if not info or not info.get("status_msg"):
+        return
+    try:
+        await info["status_msg"].delete()
+    except discord.NotFound:
+        pass
+    info["status_msg"] = None
 
 
 async def launch_session(state: BotState, prompt: str, channel: discord.abc.Messageable, trigger: discord.Message, bot):
@@ -167,12 +110,9 @@ async def poll_session(state: BotState, sid: str):
         return
 
     last_title = None
-    transcript_index = 0
 
     while sid in state.tracked_sessions:
         await asyncio.sleep(POLL_INTERVAL)
-
-        transcript_index = await _poll_transcript_turns(sid, target, transcript_index)
 
         data = await api_get(f"/orbh/sessions/{sid}")
         if not data or "session" not in data:
@@ -191,13 +131,12 @@ async def poll_session(state: BotState, sid: str):
             continue
 
         if status == "finished":
-            transcript_index = await _poll_transcript_turns(sid, target, transcript_index)
-            await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u2705 Finished", color=0x2ECC71)
+            await delete_status_card(state, sid)
             await post_session_result(state, sid, session, target)
             break
 
         if status == "failed":
-            await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u274C Failed", color=0xFF0000)
+            await delete_status_card(state, sid)
             author = state.get_author(sid)
             embed = discord.Embed(description="Session failed.", color=0xFF0000)
             embed.set_footer(text=f"session: {sid}")
@@ -205,7 +144,7 @@ async def poll_session(state: BotState, sid: str):
             break
 
         if status == "cancelled":
-            await update_status_card(state, sid, session, description=f"**{title or 'Session'}**\n\n\u23F9\uFE0F Cancelled")
+            await delete_status_card(state, sid)
             break
 
     state.tracked_sessions.pop(sid, None)
