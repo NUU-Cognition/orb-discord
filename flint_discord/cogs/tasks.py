@@ -289,7 +289,7 @@ class TasksCog(commands.GroupCog, name="task", description="Task management"):
             f"tick checkboxes immediately when complete, and keep the Task Log updated.\n\n"
             f"GOAL: Complete all requirements and move the task to `review` when done.\n"
             f"If you are blocked on a decision or need human input, use a deferred question "
-            f"(`flint orb request`) and set the task to `blocked`.\n"
+            f"(`flint orbh request`) and set the task to `blocked`.\n"
             f"When the work is complete, move the task to review and provide a concise completion summary."
         ) + DISCORD_SHARD_INSTRUCTION
 
@@ -359,22 +359,29 @@ class TasksCog(commands.GroupCog, name="task", description="Task management"):
         while not self.bot.is_closed():
             try:
                 async with httpx.AsyncClient(timeout=None) as http:
-                    async with http.stream("GET", f"{FLINT_SERVER_URL}/api/artifacts/events") as resp:
+                    async with http.stream("GET", f"{FLINT_SERVER_URL}/events/stream?channels=artifacts") as resp:
                         buffer = ""
                         async for chunk in resp.aiter_text():
                             buffer += chunk
                             while "\n\n" in buffer:
                                 raw_block, buffer = buffer.split("\n\n", 1)
+                                event_type = None
                                 data_str = None
                                 for line in raw_block.split("\n"):
-                                    if line.startswith("data: "):
+                                    if line.startswith("event: "):
+                                        event_type = line[7:]
+                                    elif line.startswith("data: "):
                                         data_str = line[6:]
+                                    elif line.startswith(":"):
+                                        continue
                                 if not data_str:
                                     continue
                                 try:
                                     payload = json.loads(data_str)
                                 except json.JSONDecodeError:
                                     continue
+                                if event_type:
+                                    payload["event"] = event_type
                                 await self._handle_artifact_event(payload, channel)
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError):
                 pass
@@ -385,7 +392,7 @@ class TasksCog(commands.GroupCog, name="task", description="Task management"):
     async def _handle_artifact_event(self, data: dict, channel: discord.abc.Messageable):
         event = data.get("event")
         if event == "snapshot":
-            for item in data.get("items", []):
+            for item in data.get("artifacts", []):
                 fm = item.get("frontmatter", {})
                 if "#proj/task" in fm.get("tags", []):
                     self._task_statuses[item["id"]] = fm.get("status", "")

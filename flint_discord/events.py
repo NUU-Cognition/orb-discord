@@ -1,4 +1,4 @@
-"""Unified SSE event watcher — connects to /orbh/events and dispatches."""
+"""Unified SSE event watcher — connects to /events/stream and dispatches."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 async def watch_events(state: BotState, bot: Bot):
-    """Connect to the unified /orbh/events SSE stream for typed events."""
+    """Connect to the unified /events/stream SSE stream for typed events."""
     from .config import FLINT_SERVER_URL
 
     await bot.wait_until_ready()
@@ -30,7 +30,7 @@ async def watch_events(state: BotState, bot: Bot):
     while not bot.is_closed():
         try:
             async with httpx.AsyncClient(timeout=None) as http:
-                async with http.stream("GET", f"{FLINT_SERVER_URL}/orbh/events") as resp:
+                async with http.stream("GET", f"{FLINT_SERVER_URL}/events/stream?channels=orbh") as resp:
                     buffer = ""
                     async for chunk in resp.aiter_text():
                         buffer += chunk
@@ -68,7 +68,7 @@ async def _handle_event(state: BotState, data: dict, fallback_channel: discord.a
     if not sid:
         return
 
-    if event in ("request.created", "request.pending"):
+    if event == "request.created":
         rid = data.get("requestId")
         if not rid or rid in state.posted_requests:
             return
@@ -98,8 +98,9 @@ async def _handle_event(state: BotState, data: dict, fallback_channel: discord.a
         info = state.tracked_sessions.get(sid)
         if not info:
             return
-        title = data.get("title") or "Session"
-        new_status = data.get("status", "unknown")
+        session = data.get("session") or {}
+        title = session.get("title") or "Session"
+        new_status = data.get("to", "unknown")
         emoji = STATUS_EMOJI.get(new_status, "\u2753")
         color = STATUS_COLORS.get(new_status, 0x95A5A6)
         session_data = {"status": new_status, "title": title}
@@ -109,7 +110,8 @@ async def _handle_event(state: BotState, data: dict, fallback_channel: discord.a
         info = state.tracked_sessions.get(sid)
         if not info:
             return
-        title = data.get("title") or "Session"
+        session = data.get("session") or {}
+        title = session.get("title") or "Session"
         session_data = {"status": "finished", "title": title}
         await update_status_card(state, sid, session_data, description=f"**{title}**\n\n\u2705 Finished", color=0x2ECC71)
         target = info.get("thread")
@@ -125,7 +127,8 @@ async def _handle_event(state: BotState, data: dict, fallback_channel: discord.a
         info = state.tracked_sessions.get(sid)
         if not info:
             return
-        title = data.get("title") or "Session"
+        session = data.get("session") or {}
+        title = session.get("title") or "Session"
         session_data = {"status": "failed", "title": title}
         await update_status_card(state, sid, session_data, description=f"**{title}**\n\n\u274c Failed", color=0xFF0000)
         target = info.get("thread")
@@ -142,7 +145,8 @@ async def _handle_event(state: BotState, data: dict, fallback_channel: discord.a
         info = state.tracked_sessions.get(sid)
         if not info:
             return
-        title = data.get("title") or "Session"
+        session = data.get("session") or {}
+        title = session.get("title") or "Session"
         session_data = {"status": "cancelled", "title": title}
         await update_status_card(state, sid, session_data, description=f"**{title}**\n\n\u23f9\ufe0f Cancelled")
         # Clean up so poller exits immediately

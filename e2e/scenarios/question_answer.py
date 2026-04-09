@@ -26,7 +26,7 @@ async def test_question_answer(ctx: E2EContext):
     session_data = await flint_api_post("/orbh/sessions", {
         "runtime": "claude",
         "prompt": (
-            "Use `flint orb ask` to ask the user: 'What color is the sky?' "
+            "Use `flint orbh ask` to ask the user: 'What color is the sky?' "
             "Wait for the answer, then say exactly: 'The answer was: <answer>'. "
             "Do nothing else."
         ),
