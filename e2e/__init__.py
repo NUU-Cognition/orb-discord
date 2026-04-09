@@ -1,1 +1,1 @@
-"""E2E testing harness for flint-discord bot."""
+"""E2E testing harness for orb-discord bot."""

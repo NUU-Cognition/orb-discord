@@ -24,7 +24,7 @@ class E2EContext:
 
 
 async def find_bot_member(guild: discord.Guild, client: discord.Client) -> discord.Member | None:
-    """Find the flint-discord bot member in the guild."""
+    """Find the orb-discord bot member in the guild."""
     for member in guild.members:
         if member.bot and member.id != client.user.id:
             return member
@@ -40,7 +40,7 @@ async def run_harness(scenarios: list[tuple[str, object]]):
     reporter = Reporter()
 
     print("=" * 60)
-    print("  flint-discord E2E Test Harness")
+    print("  orb-discord E2E Test Harness")
     print("=" * 60)
     print()
 
@@ -85,7 +85,7 @@ async def run_harness(scenarios: list[tuple[str, object]]):
             return reporter
         print(f"\u2705 Found guild: {guild.name}")
 
-        # 4. Find the bot member (the flint-discord bot we're testing)
+        # 4. Find the bot member (the orb-discord bot we're testing)
         # In E2E mode with a single token, the test client IS the bot
         bot_member = guild.me
         if not bot_member:

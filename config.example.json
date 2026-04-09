@@ -1,0 +1,15 @@
+{
+  "active": "default",
+  "profiles": {
+    "default": {
+      "discord_token": "YOUR_DISCORD_TOKEN",
+      "server_url": "http://127.0.0.1:7433",
+      "max_turns": 999,
+      "poll_interval": 3,
+      "dashboard_interval": 30,
+      "command_prefix": "!",
+      "requests_channel_id": null,
+      "tasks_channel_id": null
+    }
+  }
+}

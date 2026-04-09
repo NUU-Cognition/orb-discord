@@ -1,4 +1,4 @@
-"""Flint server API client — reusable httpx wrappers."""
+"""Orbh server API client — reusable httpx wrappers."""
 
 from __future__ import annotations
 

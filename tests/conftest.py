@@ -1,10 +1,10 @@
-"""Shared fixtures for flint-discord tests."""
+"""Shared fixtures for orb-discord tests."""
 
 from __future__ import annotations
 
 import os
 
-# Set required env vars before any flint_discord imports
+# Set required env vars before any orb_discord imports
 os.environ.setdefault("DISCORD_TOKEN", "test-token")
 
 from unittest.mock import AsyncMock, MagicMock
@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from flint_discord.state import BotState
+from orb_discord.state import BotState
 
 
 @pytest.fixture

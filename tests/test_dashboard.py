@@ -1,4 +1,4 @@
-"""Unit tests for flint_discord.dashboard — embed building, update loop, channel discovery."""
+"""Unit tests for orb_discord.dashboard — embed building, update loop, channel discovery."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-import flint_discord.dashboard as dashboard_module
-from flint_discord.dashboard import build_dashboard_embed, run_dashboard
+import orb_discord.dashboard as dashboard_module
+from orb_discord.dashboard import build_dashboard_embed, run_dashboard
 
 
 class _AsyncIter:
@@ -63,7 +63,7 @@ def dashboard_msg():
 
 
 class TestBuildDashboardEmbed:
-    @patch("flint_discord.dashboard.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.api_get", new_callable=AsyncMock)
     async def test_embed_builds_correctly_from_active_sessions(self, mock_api_get, bot_state):
         """Given 3 sessions (in-progress, blocked, finished) and 1 pending request,
         embed shows 2 entries, pending request, warning header, red color."""
@@ -99,7 +99,7 @@ class TestBuildDashboardEmbed:
         # Color is red
         assert embed.color.value == 0xFF6B6B
 
-    @patch("flint_discord.dashboard.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.api_get", new_callable=AsyncMock)
     async def test_no_active_sessions_shows_empty_state(self, mock_api_get, bot_state):
         """All sessions terminal -> 'No active sessions' with grey color."""
         mock_api_get.side_effect = [
@@ -116,7 +116,7 @@ class TestBuildDashboardEmbed:
         assert "No active sessions" in embed.description
         assert embed.color.value == 0x95A5A6
 
-    @patch("flint_discord.dashboard.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.api_get", new_callable=AsyncMock)
     async def test_session_title_fallback_chain(self, mock_api_get, bot_state):
         """Session with no title uses first 40 chars of prompt."""
         prompt = "implement the authentication flow for the new API endpoint"
@@ -139,8 +139,8 @@ class TestBuildDashboardEmbed:
 
 
 class TestRunDashboard:
-    @patch("flint_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
     async def test_embed_skips_update_when_content_unchanged(
         self, mock_build, mock_sleep, bot_state, mock_bot, dashboard_channel, dashboard_msg
     ):
@@ -160,8 +160,8 @@ class TestRunDashboard:
         # edit called only once — second iteration skipped due to same hash
         assert dashboard_msg.edit.call_count == 1
 
-    @patch("flint_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
     async def test_channel_auto_discovery_by_name(
         self, mock_build, mock_sleep, bot_state, mock_bot, dashboard_channel, dashboard_msg
     ):
@@ -187,8 +187,8 @@ class TestRunDashboard:
 
         assert bot_state.dashboard_channel_id == dashboard_channel.id
 
-    @patch("flint_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
     async def test_deleted_message_triggers_repost(
         self, mock_build, mock_sleep, bot_state, mock_bot, dashboard_channel, dashboard_msg
     ):
@@ -225,8 +225,8 @@ class TestRunDashboard:
 
 
 class TestEdgeCases:
-    @patch("flint_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
     async def test_api_failure_skips_update_retries_next(
         self, mock_build, mock_sleep, bot_state, mock_bot, dashboard_channel, dashboard_msg
     ):
@@ -256,7 +256,7 @@ class TestEdgeCases:
 
     async def test_dashboard_command_in_dm(self):
         """!dashboard in DM replies with error message."""
-        from flint_discord.cogs.admin import AdminCog
+        from orb_discord.cogs.admin import AdminCog
 
         bot = AsyncMock()
         state = MagicMock()
@@ -272,7 +272,7 @@ class TestEdgeCases:
 
     async def test_bot_lacks_channel_create_permission(self):
         """Forbidden on create_text_channel propagates (discord.py handles it)."""
-        from flint_discord.cogs.admin import AdminCog
+        from orb_discord.cogs.admin import AdminCog
 
         bot = AsyncMock()
         state = MagicMock()
@@ -291,8 +291,8 @@ class TestEdgeCases:
         with pytest.raises(discord.Forbidden):
             await cog.cmd_dashboard.callback(cog, ctx)
 
-    @patch("flint_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.dashboard.build_dashboard_embed", new_callable=AsyncMock)
     async def test_state_lost_after_crash_scans_all_guilds(
         self, mock_build, mock_sleep, bot_state, mock_bot, dashboard_channel, dashboard_msg
     ):

@@ -1,4 +1,4 @@
-"""Unit tests for flint_discord.sessions — poll loop, transcript rendering, result posting."""
+"""Unit tests for orb_discord.sessions — poll loop, transcript rendering, result posting."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 
-from flint_discord.sessions import (
+from orb_discord.sessions import (
     delete_status_card,
     extract_last_agent_text,
     extract_result,
@@ -81,8 +81,8 @@ class TestDeleteStatusCard:
 
 
 class TestPollSession:
-    @patch("flint_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
     async def test_poll_through_to_finished(self, mock_api_get, mock_sleep, tracked_session):
         sid, state = tracked_session
 
@@ -92,9 +92,9 @@ class TestPollSession:
             {"session": {"status": "finished", "title": "Done", "runs": [{"result": "All done!"}]}},
         ]
 
-        with patch("flint_discord.sessions.post_session_result", new_callable=AsyncMock) as mock_post_result:
-            with patch("flint_discord.sessions.update_status_card", new_callable=AsyncMock):
-                with patch("flint_discord.sessions.delete_status_card", new_callable=AsyncMock) as mock_delete:
+        with patch("orb_discord.sessions.post_session_result", new_callable=AsyncMock) as mock_post_result:
+            with patch("orb_discord.sessions.update_status_card", new_callable=AsyncMock):
+                with patch("orb_discord.sessions.delete_status_card", new_callable=AsyncMock) as mock_delete:
                     await poll_session(state, sid)
 
         mock_post_result.assert_called_once()
@@ -103,8 +103,8 @@ class TestPollSession:
         assert sid not in state.tracked_sessions
         state.save.assert_called()
 
-    @patch("flint_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
     async def test_poll_surfaces_requests_on_blocked(self, mock_api_get, mock_sleep, tracked_session):
         sid, state = tracked_session
 
@@ -114,16 +114,16 @@ class TestPollSession:
             {"session": {"status": "finished", "title": "Done", "runs": [{"result": "ok"}]}},
         ]
 
-        with patch("flint_discord.sessions.surface_pending_requests", new_callable=AsyncMock) as mock_surface:
-            with patch("flint_discord.sessions.post_session_result", new_callable=AsyncMock):
-                with patch("flint_discord.sessions.update_status_card", new_callable=AsyncMock):
-                    with patch("flint_discord.sessions.delete_status_card", new_callable=AsyncMock):
+        with patch("orb_discord.sessions.surface_pending_requests", new_callable=AsyncMock) as mock_surface:
+            with patch("orb_discord.sessions.post_session_result", new_callable=AsyncMock):
+                with patch("orb_discord.sessions.update_status_card", new_callable=AsyncMock):
+                    with patch("orb_discord.sessions.delete_status_card", new_callable=AsyncMock):
                         await poll_session(state, sid)
 
         mock_surface.assert_called_once()
 
-    @patch("flint_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
     async def test_poll_handles_failed_status(self, mock_api_get, mock_sleep, tracked_session):
         sid, state = tracked_session
 
@@ -131,14 +131,14 @@ class TestPollSession:
             {"session": {"status": "failed", "title": "Oops"}},
         ]
 
-        with patch("flint_discord.sessions.delete_status_card", new_callable=AsyncMock) as mock_delete:
+        with patch("orb_discord.sessions.delete_status_card", new_callable=AsyncMock) as mock_delete:
             await poll_session(state, sid)
 
         mock_delete.assert_called_once()
         assert sid not in state.tracked_sessions
 
-    @patch("flint_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
     async def test_poll_exits_when_session_removed(self, mock_api_get, mock_sleep, tracked_session):
         sid, state = tracked_session
 
@@ -152,8 +152,8 @@ class TestPollSession:
         await poll_session(state, sid)
         assert sid not in state.tracked_sessions
 
-    @patch("flint_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.asyncio.sleep", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
     async def test_poll_continues_on_api_none(self, mock_api_get, mock_sleep, tracked_session):
         """api_get returning None should not crash the loop."""
         sid, state = tracked_session
@@ -169,8 +169,8 @@ class TestPollSession:
 
         mock_api_get.side_effect = api_side_effect
 
-        with patch("flint_discord.sessions.post_session_result", new_callable=AsyncMock):
-            with patch("flint_discord.sessions.update_status_card", new_callable=AsyncMock):
+        with patch("orb_discord.sessions.post_session_result", new_callable=AsyncMock):
+            with patch("orb_discord.sessions.update_status_card", new_callable=AsyncMock):
                 await poll_session(state, sid)
 
 
@@ -180,8 +180,8 @@ class TestPollSession:
 
 
 class TestSurfacePendingRequests:
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.post_question", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.post_question", new_callable=AsyncMock)
     async def test_posts_unanswered_requests(self, mock_post_q, mock_api_get, bot_state, mock_thread):
         sid = "sid-1"
         bot_state.tracked_sessions[sid] = {"thread": mock_thread}
@@ -196,8 +196,8 @@ class TestSurfacePendingRequests:
         call_args = mock_post_q.call_args[0]
         assert call_args[2]["id"] == "r1"
 
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.post_question", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.post_question", new_callable=AsyncMock)
     async def test_skips_already_posted_requests(self, mock_post_q, mock_api_get, bot_state, mock_thread):
         sid = "sid-1"
         bot_state.posted_requests.add("r1")
@@ -255,8 +255,8 @@ class TestExtractLastAgentText:
 
 
 class TestPostSessionResult:
-    @patch("flint_discord.sessions.send_long", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.extract_discord_images", return_value=("result text", []))
+    @patch("orb_discord.sessions.send_long", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.extract_discord_images", return_value=("result text", []))
     async def test_posts_result_from_runs(self, mock_images, mock_send_long, bot_state, mock_thread):
         sid = "sid-1"
         bot_state.tracked_sessions[sid] = {"thread": mock_thread, "author": None}
@@ -265,17 +265,17 @@ class TestPostSessionResult:
         mock_send_long.assert_called_once()
         assert sid in bot_state.posted_results
 
-    @patch("flint_discord.sessions.send_long", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.extract_discord_images", return_value=("result text", []))
+    @patch("orb_discord.sessions.send_long", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.extract_discord_images", return_value=("result text", []))
     async def test_skips_duplicate_result(self, mock_images, mock_send_long, bot_state, mock_thread):
         sid = "sid-1"
         bot_state.posted_results.add(sid)
         await post_session_result(bot_state, sid, {}, mock_thread)
         mock_send_long.assert_not_called()
 
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.send_long", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.extract_discord_images", return_value=("fallback text", []))
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.send_long", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.extract_discord_images", return_value=("fallback text", []))
     async def test_falls_back_to_transcript(self, mock_images, mock_send_long, mock_api_get, bot_state, mock_thread):
         sid = "sid-1"
         bot_state.tracked_sessions[sid] = {"thread": mock_thread, "author": None}
@@ -286,9 +286,9 @@ class TestPostSessionResult:
         await post_session_result(bot_state, sid, session, mock_thread)
         mock_send_long.assert_called_once()
 
-    @patch("flint_discord.sessions.api_get", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.send_long", new_callable=AsyncMock)
-    @patch("flint_discord.sessions.extract_discord_images", return_value=("Session completed but no result was returned.", []))
+    @patch("orb_discord.sessions.api_get", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.send_long", new_callable=AsyncMock)
+    @patch("orb_discord.sessions.extract_discord_images", return_value=("Session completed but no result was returned.", []))
     async def test_handles_no_result_gracefully(self, mock_images, mock_send_long, mock_api_get, bot_state, mock_thread):
         sid = "sid-1"
         bot_state.tracked_sessions[sid] = {"thread": mock_thread, "author": None}

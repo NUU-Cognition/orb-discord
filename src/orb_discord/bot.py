@@ -27,9 +27,9 @@ async def setup_bot(bot: commands.Bot):
     """Load cogs and register event handlers."""
     state: BotState = bot.state  # type: ignore[attr-defined]
 
-    await bot.load_extension("flint_discord.cogs.sessions")
-    await bot.load_extension("flint_discord.cogs.admin")
-    await bot.load_extension("flint_discord.cogs.tasks")
+    await bot.load_extension("orb_discord.cogs.sessions")
+    await bot.load_extension("orb_discord.cogs.admin")
+    await bot.load_extension("orb_discord.cogs.tasks")
 
     @bot.event
     async def on_ready():
