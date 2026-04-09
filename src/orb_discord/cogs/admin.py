@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 
 from ..api import api_get
-from ..config import COMMAND_PREFIX
+from .. import config
 from ..dashboard import build_dashboard_embed, run_dashboard
 from ..state import BotState
 
@@ -88,12 +88,12 @@ class AdminCog(commands.Cog, name="Admin"):
     async def cmd_help(self, ctx: commands.Context):
         """Show available commands."""
         lines = [
-            f"`{COMMAND_PREFIX}sessions` \u2014 List all OrbH sessions",
-            f"`{COMMAND_PREFIX}session <id>` \u2014 Show session details",
-            f"`{COMMAND_PREFIX}kill <id>` \u2014 Kill a running session",
-            f"`{COMMAND_PREFIX}requests` \u2014 List pending agent requests",
-            f"`{COMMAND_PREFIX}health` \u2014 Server health check",
-            f"`{COMMAND_PREFIX}dashboard` \u2014 Create live dashboard channel",
+            f"`{config.COMMAND_PREFIX}sessions` \u2014 List all OrbH sessions",
+            f"`{config.COMMAND_PREFIX}session <id>` \u2014 Show session details",
+            f"`{config.COMMAND_PREFIX}kill <id>` \u2014 Kill a running session",
+            f"`{config.COMMAND_PREFIX}requests` \u2014 List pending agent requests",
+            f"`{config.COMMAND_PREFIX}health` \u2014 Server health check",
+            f"`{config.COMMAND_PREFIX}dashboard` \u2014 Create live dashboard channel",
             "",
             "**Tasks (slash commands):**",
             "`/task list [status]` \u2014 List tasks grouped by status",

@@ -55,7 +55,7 @@ class TestBotStateAccessors:
 
 
 class TestBotStateSave:
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     def test_serializes_tracked_sessions(self, mock_state_file):
         state = BotState()
         sid = "test-sid"
@@ -83,7 +83,7 @@ class TestBotStateSave:
         assert sess_data["status_msg_id"] == 200
         assert sess_data["author_id"] == 300
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     def test_serializes_posted_requests_and_results(self, mock_state_file, bot_state):
         bot_state.save = BotState.save.__get__(bot_state)  # restore real save
         bot_state.posted_requests = {"r1", "r2"}
@@ -93,7 +93,7 @@ class TestBotStateSave:
         assert set(written["posted_requests"]) == {"r1", "r2"}
         assert written["posted_results"] == ["sid1"]
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     def test_serializes_question_messages(self, mock_state_file, bot_state):
         bot_state.save = BotState.save.__get__(bot_state)
         bot_state.question_messages[12345] = {"session_id": "s1", "request_id": "r1", "type": "blocking"}
@@ -101,7 +101,7 @@ class TestBotStateSave:
         written = json.loads(mock_state_file.write_text.call_args[0][0])
         assert "12345" in written["question_messages"]
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     def test_serializes_dashboard_state(self, mock_state_file, bot_state):
         bot_state.save = BotState.save.__get__(bot_state)
         bot_state.dashboard_channel_id = 999
@@ -118,20 +118,20 @@ class TestBotStateSave:
 
 
 class TestLoadRaw:
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     def test_returns_empty_when_no_file(self, mock_state_file):
         mock_state_file.exists.return_value = False
         state = BotState()
         assert state._load_raw() == {}
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     def test_returns_empty_on_invalid_json(self, mock_state_file):
         mock_state_file.exists.return_value = True
         mock_state_file.read_text.return_value = "not json"
         state = BotState()
         assert state._load_raw() == {}
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     def test_returns_parsed_json(self, mock_state_file):
         data = {"tracked_sessions": {}, "posted_requests": ["r1"]}
         mock_state_file.exists.return_value = True
@@ -163,7 +163,7 @@ class TestDedupTracking:
 
 
 class TestRehydrate:
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     @patch("orb_discord.state.api_get", new_callable=AsyncMock)
     async def test_restores_posted_sets(self, mock_api_get, mock_state_file):
         raw = {
@@ -185,7 +185,7 @@ class TestRehydrate:
         assert state.posted_results == {"sid-a"}
         assert 100 in state.question_messages
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     async def test_handles_empty_state_gracefully(self, mock_state_file):
         mock_state_file.exists.return_value = False
         state = BotState()
@@ -194,7 +194,7 @@ class TestRehydrate:
         await state.rehydrate(bot)
         assert state.tracked_sessions == {}
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     @patch("orb_discord.state.api_get", new_callable=AsyncMock)
     async def test_cleans_finished_sessions(self, mock_api_get, mock_state_file):
         raw = {
@@ -216,7 +216,7 @@ class TestRehydrate:
         await state.rehydrate(bot)
         assert "sid-finished" not in state.tracked_sessions
 
-    @patch("orb_discord.state.STATE_FILE")
+    @patch("orb_discord.config.STATE_FILE")
     @patch("orb_discord.state.api_get", new_callable=AsyncMock)
     async def test_cleans_sessions_with_no_server_data(self, mock_api_get, mock_state_file):
         raw = {

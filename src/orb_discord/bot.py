@@ -36,8 +36,8 @@ async def setup_bot(bot: commands.Bot):
     @bot.event
     async def on_ready():
         print(f"Bot connected as {bot.user}")
-        from .config import FLINT_SERVER_URL
-        print(f"Flint server: {FLINT_SERVER_URL}")
+        from . import config
+        print(f"Flint server: {config.FLINT_SERVER_URL}")
         await bot.tree.sync()
         print("Slash commands synced")
         await state.rehydrate(bot)
@@ -51,8 +51,8 @@ async def setup_bot(bot: commands.Bot):
     async def on_message(message: discord.Message):
         if message.author == bot.user:
             return
-        from .config import COMMAND_PREFIX as _prefix
-        if message.content.startswith(_prefix):
+        from . import config as _cfg
+        if message.content.startswith(_cfg.COMMAND_PREFIX):
             await bot.process_commands(message)
             return
 

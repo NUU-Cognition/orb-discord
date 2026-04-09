@@ -10,7 +10,7 @@ import discord
 import httpx
 
 from .api import api_get
-from .config import REQUESTS_CHANNEL_ID
+from . import config
 from .formatting import STATUS_EMOJI, STATUS_COLORS
 from .sessions import post_question, post_session_result, update_status_card
 
@@ -22,15 +22,13 @@ if TYPE_CHECKING:
 
 async def watch_events(state: BotState, bot: Bot):
     """Connect to the unified /events/stream SSE stream for typed events."""
-    from .config import FLINT_SERVER_URL
-
     await bot.wait_until_ready()
-    requests_channel = bot.get_channel(int(REQUESTS_CHANNEL_ID)) if REQUESTS_CHANNEL_ID else None
+    requests_channel = bot.get_channel(int(config.REQUESTS_CHANNEL_ID)) if config.REQUESTS_CHANNEL_ID else None
 
     while not bot.is_closed():
         try:
             async with httpx.AsyncClient(timeout=None) as http:
-                async with http.stream("GET", f"{FLINT_SERVER_URL}/events/stream?channels=orbh") as resp:
+                async with http.stream("GET", f"{config.FLINT_SERVER_URL}/events/stream?channels=orbh") as resp:
                     buffer = ""
                     async for chunk in resp.aiter_text():
                         buffer += chunk

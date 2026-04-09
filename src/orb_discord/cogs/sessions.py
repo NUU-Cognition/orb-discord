@@ -6,7 +6,7 @@ from discord.ext import commands
 import discord
 
 from ..api import api_get, api_delete
-from ..config import COMMAND_PREFIX
+from .. import config
 from ..formatting import STATUS_COLORS, STATUS_EMOJI, relative_time, send_long
 from ..state import BotState
 
@@ -39,7 +39,7 @@ class SessionsCog(commands.Cog, name="Sessions"):
     async def cmd_session(self, ctx: commands.Context, session_id: str = ""):
         """Show session details."""
         if not session_id:
-            return await ctx.reply(f"Usage: `{COMMAND_PREFIX}session <id>`")
+            return await ctx.reply(f"Usage: `{config.COMMAND_PREFIX}session <id>`")
         data = await api_get(f"/orbh/sessions/{session_id}")
         if not data or "session" not in data:
             return await ctx.reply(f"Session `{session_id}` not found.")
@@ -70,7 +70,7 @@ class SessionsCog(commands.Cog, name="Sessions"):
     async def cmd_kill(self, ctx: commands.Context, session_id: str = ""):
         """Kill a running session."""
         if not session_id:
-            return await ctx.reply(f"Usage: `{COMMAND_PREFIX}kill <id>`")
+            return await ctx.reply(f"Usage: `{config.COMMAND_PREFIX}kill <id>`")
         data = await api_delete(f"/orbh/sessions/{session_id}")
         if not data:
             return await ctx.reply(f"Session `{session_id}` not found or server unreachable.")

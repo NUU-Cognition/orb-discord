@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import discord
 
 from .api import api_get
-from .config import STATE_FILE
+from . import config
 
 if TYPE_CHECKING:
     from discord.ext.commands import Bot
@@ -58,13 +58,13 @@ class BotState:
                 "message_id": self.dashboard_message.id if self.dashboard_message else None,
             },
         }
-        STATE_FILE.write_text(json.dumps(state, indent=2))
+        config.STATE_FILE.write_text(json.dumps(state, indent=2))
 
     def _load_raw(self) -> dict:
-        if not STATE_FILE.exists():
+        if not config.STATE_FILE.exists():
             return {}
         try:
-            return json.loads(STATE_FILE.read_text())
+            return json.loads(config.STATE_FILE.read_text())
         except (json.JSONDecodeError, OSError):
             return {}
 

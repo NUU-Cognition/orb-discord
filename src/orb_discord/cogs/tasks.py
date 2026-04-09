@@ -346,11 +346,11 @@ class TasksCog(commands.GroupCog, name="task", description="Task management"):
             return
         self._watching = True
 
-        from ..config import FLINT_SERVER_URL, TASKS_CHANNEL_ID
+        from .. import config
 
-        if not TASKS_CHANNEL_ID:
+        if not config.TASKS_CHANNEL_ID:
             return
-        channel = self.bot.get_channel(int(TASKS_CHANNEL_ID))
+        channel = self.bot.get_channel(int(config.TASKS_CHANNEL_ID))
         if not channel:
             return
 
@@ -359,7 +359,7 @@ class TasksCog(commands.GroupCog, name="task", description="Task management"):
         while not self.bot.is_closed():
             try:
                 async with httpx.AsyncClient(timeout=None) as http:
-                    async with http.stream("GET", f"{FLINT_SERVER_URL}/events/stream?channels=artifacts") as resp:
+                    async with http.stream("GET", f"{config.FLINT_SERVER_URL}/events/stream?channels=artifacts") as resp:
                         buffer = ""
                         async for chunk in resp.aiter_text():
                             buffer += chunk

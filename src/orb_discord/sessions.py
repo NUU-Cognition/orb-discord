@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import discord
 
 from .api import api_get, api_post
-from .config import MAX_TURNS, POLL_INTERVAL
+from . import config
 from .formatting import STATUS_COLORS, STATUS_EMOJI, extract_discord_images, send_long
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ async def delete_status_card(state: BotState, sid: str):
 
 async def launch_session(state: BotState, prompt: str, channel: discord.abc.Messageable, trigger: discord.Message, bot):
     prompt = prompt + DISCORD_SHARD_INSTRUCTION
-    data = await api_post("/orbh/sessions", {"runtime": "claude", "prompt": prompt, "maxTurns": MAX_TURNS})
+    data = await api_post("/orbh/sessions", {"runtime": "claude", "prompt": prompt, "maxTurns": config.MAX_TURNS})
     if not data or "session" not in data:
         error = data.get("error", "Unknown error") if data else "Cannot reach server"
         return await trigger.reply(f"Failed to launch: {error}")
@@ -112,7 +112,7 @@ async def poll_session(state: BotState, sid: str):
     last_title = None
 
     while sid in state.tracked_sessions:
-        await asyncio.sleep(POLL_INTERVAL)
+        await asyncio.sleep(config.POLL_INTERVAL)
 
         data = await api_get(f"/orbh/sessions/{sid}")
         if not data or "session" not in data:

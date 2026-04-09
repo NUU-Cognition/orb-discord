@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import discord
 
 from .api import api_get
-from .config import DASHBOARD_INTERVAL
+from . import config
 from .formatting import STATUS_EMOJI, relative_time
 
 if TYPE_CHECKING:
@@ -125,4 +125,4 @@ async def run_dashboard(state: BotState, bot: Bot):
             state.save()
         except Exception as e:
             print(f"Dashboard error: {e}")
-        await asyncio.sleep(DASHBOARD_INTERVAL)
+        await asyncio.sleep(config.DASHBOARD_INTERVAL)
