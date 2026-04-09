@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import sys
+
 import discord
 import httpx
 from discord.ext import commands
 
 from .api import api_get, api_post
-from .config import COMMAND_PREFIX, DISCORD_TOKEN
 from .dashboard import run_dashboard
 from .events import watch_events
 from .formatting import extract_session_id
@@ -16,6 +17,7 @@ from .state import BotState
 
 
 def create_bot() -> commands.Bot:
+    from .config import COMMAND_PREFIX
     intents = discord.Intents.default()
     intents.message_content = True
     bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents, help_command=None)
@@ -49,7 +51,8 @@ async def setup_bot(bot: commands.Bot):
     async def on_message(message: discord.Message):
         if message.author == bot.user:
             return
-        if message.content.startswith(COMMAND_PREFIX):
+        from .config import COMMAND_PREFIX as _prefix
+        if message.content.startswith(_prefix):
             await bot.process_commands(message)
             return
 
@@ -136,6 +139,15 @@ async def _respond_to_request(state: BotState, sid: str, text: str, message: dis
 
 
 def run():
+    if len(sys.argv) < 2:
+        print("Usage: orb-discord <profile>", file=sys.stderr)
+        print("  e.g. orb-discord default", file=sys.stderr)
+        sys.exit(1)
+
+    from .config import init_config
+    init_config(sys.argv[1])
+
+    from .config import DISCORD_TOKEN
     bot = create_bot()
 
     @bot.event
