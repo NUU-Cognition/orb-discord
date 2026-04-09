@@ -90,6 +90,10 @@ class AdminCog(commands.Cog, name="Admin"):
         lines = [
             f"`{config.COMMAND_PREFIX}sessions` \u2014 List all OrbH sessions",
             f"`{config.COMMAND_PREFIX}session <id>` \u2014 Show session details",
+            f"`{config.COMMAND_PREFIX}watch <id>` \u2014 View session transcript",
+            f"`{config.COMMAND_PREFIX}stats <id>` \u2014 Session statistics (tokens, tools, turns)",
+            f"`{config.COMMAND_PREFIX}resume <id> [prompt]` \u2014 Resume a session with a new run",
+            f"`{config.COMMAND_PREFIX}respond <id> <answer>` \u2014 Answer a session's pending question",
             f"`{config.COMMAND_PREFIX}kill <id>` \u2014 Kill a running session",
             f"`{config.COMMAND_PREFIX}requests` \u2014 List pending agent requests",
             f"`{config.COMMAND_PREFIX}health` \u2014 Server health check",

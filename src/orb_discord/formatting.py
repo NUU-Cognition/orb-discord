@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -136,6 +137,133 @@ def extract_discord_images(text: str) -> tuple[str, list[discord.File]]:
     # Strip all discord-image fences from the text
     cleaned = DISCORD_IMAGE_RE.sub("", text).strip()
     return cleaned, files
+
+
+def format_transcript_turn(turn: dict) -> str:
+    """Format a single transcript turn for Discord display."""
+    role = turn.get("role", "unknown")
+    ts = relative_time(turn.get("timestamp", ""))
+    content = turn.get("content", [])
+    usage = turn.get("usage") or {}
+    duration_ms = turn.get("durationMs")
+
+    # Build header
+    if role == "human":
+        header = f"**\U0001f464 Human** \u2022 {ts}"
+    else:
+        meta = [f"**\U0001f916 Agent** \u2022 {ts}"]
+        out_tok = usage.get("output_tokens") or usage.get("outputTokens", 0)
+        if out_tok:
+            meta.append(f"`{out_tok:,} tok`")
+        if duration_ms and duration_ms > 0:
+            secs = duration_ms / 1000
+            meta.append(f"`{secs / 60:.1f}m`" if secs >= 60 else f"`{secs:.0f}s`")
+        header = " \u2022 ".join(meta)
+
+    lines = [header]
+
+    # Collect content by type
+    texts: list[str] = []
+    tools: list[str] = []
+    subagent_count = 0
+
+    for c in content:
+        ct = c.get("type")
+        if ct == "text":
+            t = c.get("text", "").strip()
+            if t:
+                texts.append(t)
+        elif ct == "tool-batch":
+            for tool in c.get("tools", []):
+                tools.append(tool.get("name", "?"))
+        elif ct == "subagent":
+            subagent_count += 1
+
+    # Format text content
+    combined = "\n\n".join(texts)
+    if combined:
+        if role == "human":
+            snippet = combined[:400]
+            if len(combined) > 400:
+                snippet += "\u2026"
+            lines.append("> " + snippet.replace("\n", "\n> "))
+        else:
+            snippet = combined[:600]
+            if len(combined) > 600:
+                snippet += "\u2026"
+            lines.append(snippet)
+
+    # Tools (grouped with counts)
+    if tools:
+        counts = Counter(tools)
+        parts = []
+        for name, count in counts.most_common():
+            parts.append(f"{name}\u00d7{count}" if count > 1 else name)
+        lines.append(f"\U0001f527 `{' \u00b7 '.join(parts)}`")
+
+    if subagent_count:
+        lines.append(f"\U0001f500 {subagent_count} subagent{'s' if subagent_count > 1 else ''}")
+
+    return "\n".join(lines)
+
+
+def format_session_stats(session: dict, transcript: dict | None) -> str:
+    """Format session statistics for display."""
+    status = session.get("status", "unknown")
+    emoji = STATUS_EMOJI.get(status, "\u2753")
+    lines = [
+        f"**Status:** {emoji} {status}",
+        f"**Runtime:** {session.get('runtime', '?')}",
+        f"**Started:** {relative_time(session.get('started', ''))}",
+        f"**Updated:** {relative_time(session.get('updated', ''))}",
+        f"**Runs:** {len(session.get('runs', []))}",
+    ]
+
+    # Interface keys
+    interface = session.get("interface", {})
+    if interface:
+        iface_parts = [f"`{k}`: {v}" for k, v in interface.items()]
+        lines.append(f"**Interface:** {' \u00b7 '.join(iface_parts)}")
+
+    if not transcript:
+        return "\n".join(lines)
+
+    turns = transcript.get("turns", [])
+    usage = transcript.get("usage") or {}
+
+    human_turns = sum(1 for t in turns if t.get("role") == "human")
+    agent_turns = sum(1 for t in turns if t.get("role") == "agent")
+    lines.append(f"**Turns:** {len(turns)} ({human_turns} human, {agent_turns} agent)")
+
+    # Token usage
+    in_tok = usage.get("input_tokens") or usage.get("inputTokens", 0)
+    out_tok = usage.get("output_tokens") or usage.get("outputTokens", 0)
+    cache_read = usage.get("cache_read_input_tokens") or usage.get("cacheReadInputTokens", 0)
+    cache_create = usage.get("cache_creation_input_tokens") or usage.get("cacheCreationInputTokens", 0)
+
+    if in_tok or out_tok:
+        lines.append(f"**Tokens:** `{in_tok + out_tok:,}` total")
+        lines.append(f"\u2003Input: `{in_tok:,}` \u00b7 Output: `{out_tok:,}`")
+        if cache_read or cache_create:
+            lines.append(f"\u2003Cache read: `{cache_read:,}` \u00b7 Cache create: `{cache_create:,}`")
+
+    # Tool usage
+    tool_counts: Counter[str] = Counter()
+    for turn in turns:
+        for c in turn.get("content", []):
+            if c.get("type") == "tool-batch":
+                for tool in c.get("tools", []):
+                    tool_counts[tool.get("name", "?")] += 1
+    if tool_counts:
+        tool_parts = [f"`{name}` \u00d7{count}" for name, count in tool_counts.most_common(10)]
+        lines.append(f"**Tools:** {' \u00b7 '.join(tool_parts)}")
+
+    # Agent compute time
+    total_ms = sum(t.get("durationMs", 0) for t in turns if t.get("role") == "agent")
+    if total_ms:
+        lines.append(f"**Agent time:** `{total_ms / 60000:.1f}m`")
+
+    return "\n".join(lines)
 
 
 def extract_session_id(msg: discord.Message) -> str | None:

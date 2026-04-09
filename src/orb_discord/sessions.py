@@ -47,6 +47,36 @@ async def delete_status_card(state: BotState, sid: str):
     info["status_msg"] = None
 
 
+async def complete_session(state: BotState, sid: str, session: dict):
+    """Handle terminal session state — post final message, clean up tracking.
+
+    Called by both the poller and SSE event handler. Idempotent: safe to call
+    twice for the same session (guarded by tracked_sessions + posted_results).
+    """
+    info = state.tracked_sessions.get(sid)
+    if not info:
+        return
+    target = info.get("thread")
+    if not target:
+        state.tracked_sessions.pop(sid, None)
+        state.save()
+        return
+
+    status = session.get("status", "unknown")
+    await delete_status_card(state, sid)
+
+    if status == "finished":
+        await post_session_result(state, sid, session, target)
+    elif status == "failed":
+        author = state.get_author(sid)
+        embed = discord.Embed(description="Session failed.", color=0xFF0000)
+        embed.set_footer(text=f"session: {sid}")
+        await target.send(content=author.mention if author else None, embed=embed)
+
+    state.tracked_sessions.pop(sid, None)
+    state.save()
+
+
 async def launch_session(state: BotState, prompt: str, channel: discord.abc.Messageable, trigger: discord.Message, bot):
     prompt = prompt + DISCORD_SHARD_INSTRUCTION
     data = await api_post("/orbh/sessions", {"runtime": "claude", "prompt": prompt, "maxTurns": config.MAX_TURNS})
@@ -87,6 +117,7 @@ async def resume_session(state: BotState, sid: str, prompt: str, channel: discor
     embed.set_footer(text=f"session: {sid}")
     status_msg = await target.send(embed=embed)
 
+    state.posted_results.discard(sid)
     state.tracked_sessions.setdefault(sid, {})
     state.tracked_sessions[sid]["thread"] = target
     state.tracked_sessions[sid]["status_msg"] = status_msg
@@ -130,25 +161,9 @@ async def poll_session(state: BotState, sid: str):
             await surface_pending_requests(state, sid, target)
             continue
 
-        if status == "finished":
-            await delete_status_card(state, sid)
-            await post_session_result(state, sid, session, target)
-            break
-
-        if status == "failed":
-            await delete_status_card(state, sid)
-            author = state.get_author(sid)
-            embed = discord.Embed(description="Session failed.", color=0xFF0000)
-            embed.set_footer(text=f"session: {sid}")
-            await target.send(content=author.mention if author else None, embed=embed)
-            break
-
-        if status == "cancelled":
-            await delete_status_card(state, sid)
-            break
-
-    state.tracked_sessions.pop(sid, None)
-    state.save()
+        if status in ("finished", "failed", "cancelled"):
+            await complete_session(state, sid, session)
+            return
 
 
 async def surface_pending_requests(state: BotState, sid: str, channel: discord.abc.Messageable):

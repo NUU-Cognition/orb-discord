@@ -120,6 +120,7 @@ def init_config(profile_name: str) -> None:
 
     global DISCORD_TOKEN, FLINT_SERVER_URL, MAX_TURNS, POLL_INTERVAL
     global DASHBOARD_INTERVAL, REQUESTS_CHANNEL_ID, COMMAND_PREFIX, TASKS_CHANNEL_ID
+    global STATE_FILE
 
     DISCORD_TOKEN = get_discord_token()
     FLINT_SERVER_URL = get_server_url()

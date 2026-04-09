@@ -12,7 +12,7 @@ import httpx
 from .api import api_get
 from . import config
 from .formatting import STATUS_EMOJI, STATUS_COLORS
-from .sessions import post_question, post_session_result, update_status_card
+from .sessions import complete_session, post_question, update_status_card
 
 if TYPE_CHECKING:
     from discord.ext.commands import Bot
@@ -105,48 +105,12 @@ async def _handle_event(state: BotState, data: dict, fallback_channel: discord.a
         await update_status_card(state, sid, session_data, description=f"**{title}**\n\n{emoji} {new_status}", color=color)
 
     elif event == "session.finished":
-        info = state.tracked_sessions.get(sid)
-        if not info:
-            return
-        session = data.get("session") or {}
-        title = session.get("title") or "Session"
-        session_data = {"status": "finished", "title": title}
-        await update_status_card(state, sid, session_data, description=f"**{title}**\n\n\u2705 Finished", color=0x2ECC71)
-        target = info.get("thread")
-        if target:
-            full = await api_get(f"/orbh/sessions/{sid}")
-            if full and "session" in full:
-                await post_session_result(state, sid, full["session"], target)
-        # Clean up so poller exits immediately
-        state.tracked_sessions.pop(sid, None)
-        state.save()
+        full = await api_get(f"/orbh/sessions/{sid}")
+        session = full["session"] if full and "session" in full else {"status": "finished"}
+        await complete_session(state, sid, session)
 
     elif event == "session.failed":
-        info = state.tracked_sessions.get(sid)
-        if not info:
-            return
-        session = data.get("session") or {}
-        title = session.get("title") or "Session"
-        session_data = {"status": "failed", "title": title}
-        await update_status_card(state, sid, session_data, description=f"**{title}**\n\n\u274c Failed", color=0xFF0000)
-        target = info.get("thread")
-        if target:
-            author = state.get_author(sid)
-            embed = discord.Embed(description="Session failed.", color=0xFF0000)
-            embed.set_footer(text=f"session: {sid}")
-            await target.send(content=author.mention if author else None, embed=embed)
-        # Clean up so poller exits immediately
-        state.tracked_sessions.pop(sid, None)
-        state.save()
+        await complete_session(state, sid, {"status": "failed"})
 
     elif event == "session.cancelled":
-        info = state.tracked_sessions.get(sid)
-        if not info:
-            return
-        session = data.get("session") or {}
-        title = session.get("title") or "Session"
-        session_data = {"status": "cancelled", "title": title}
-        await update_status_card(state, sid, session_data, description=f"**{title}**\n\n\u23f9\ufe0f Cancelled")
-        # Clean up so poller exits immediately
-        state.tracked_sessions.pop(sid, None)
-        state.save()
+        await complete_session(state, sid, {"status": "cancelled"})

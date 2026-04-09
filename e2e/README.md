@@ -1,6 +1,6 @@
 # E2E Testing Harness
 
-End-to-end tests for the flint-discord bot. Runs the bot against a real Discord server and a live Flint server, verifying all major bot features work correctly.
+End-to-end tests for the orb-discord bot. Runs the bot against a real Discord server and a live Flint server, verifying all major bot features work correctly.
 
 ## Prerequisites
 
